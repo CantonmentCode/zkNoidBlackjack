@@ -11,6 +11,7 @@ import {blackjackConfig} from './config';
 import ZkNoidGameContext from '@zknoid/sdk/lib/contexts/ZkNoidGameContext';
 import GamePage from '@zknoid/sdk/components/framework/GamePage';
 import {FullscreenWrap} from "@zknoid/sdk/components/framework/GameWidget/ui/FullscreenWrap";
+import { motion } from "framer-motion";
 
 
 //@ts-ignore
@@ -404,9 +405,8 @@ function BlackjackGame() {
 
     return (
         <GamePage gameConfig={blackjackConfig}>
-            <FullscreenWrap isFullscreen>
-                <div
-                    className="bg-gradient-to-br from-green-800 to-green-600 min-h-screen flex items-center justify-center p-4">
+               <div
+                    className="bg-gradient-to-br from-green-800 to-green-600 min-h-screen flex items-center justify-center p-4 w-full">
                     <UICard
                         className="relative bg-gray-900 bg-opacity-90 p-8 rounded-3xl shadow-2xl text-white w-full max-w-2xl overflow-hidden">
                         <div
@@ -434,11 +434,14 @@ function BlackjackGame() {
                             </div>
                             {gameState === 0 && (
                                 <div className="mb-6">
-                                    <Input
+                                    <input
                                         type="number"
-                                        className="w-full p-4 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-400 mb-4 shadow-inner"
+                                        className="w-full p-4 text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 mb-4 shadow-inner"
                                         placeholder="Enter your bet"
                                         value={bet}
+                                        style={{
+                                            "color" : "black !important"
+                                        }}
                                         //@ts-ignore
                                         onChange={(e) => setBet(e.target.value)}
                                     />
@@ -540,7 +543,6 @@ function BlackjackGame() {
                         </CardContent>
                     </UICard>
                 </div>
-            </FullscreenWrap>
         </GamePage>
     );
 }

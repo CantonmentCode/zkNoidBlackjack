@@ -15,10 +15,13 @@ import { UInt64 as ProtoUInt64, UInt } from '@proto-kit/library';
 import { MatchMaker } from '../../engine/MatchMaker';
 import { Lobby } from '../../engine/LobbyManager';
 
+const MAX_CARD_LENGTH = 10
+
 export class Card extends Struct({
   suit: UInt64,
   value: UInt64,
-}) {}
+}) {
+}
 
 export class Hand extends Struct({
   cards: [Card, Card, Card, Card, Card], // Max 5 cards per hand
@@ -39,6 +42,10 @@ export class GameHand extends Struct({
   dealerHand: Hand,
   cardSequenceHash: Field,
   currentCardIndex: UInt64,
+}) {}
+
+export class CardList extends Struct({
+  cards: Provable.Array(Card, MAX_CARD_LENGTH),
 }) {}
 
 @runtimeModule()
@@ -77,13 +84,13 @@ export class BlackjackLogic extends MatchMaker {
   public async startBlackjackGame(
       lobby: Lobby,
       shouldUpdate: Bool,
-      cardSequence: Card[]
+      cardSequence: CardList,
   ): Promise<Void> {
     const currentGameId = lobby.id;
     const initialPlayerHand = new Hand({
       cards: [
-        cardSequence[0],
-        cardSequence[1],
+        cardSequence.cards[0],
+        cardSequence.cards[1],
         Card.empty(),
         Card.empty(),
         Card.empty(),
@@ -93,8 +100,8 @@ export class BlackjackLogic extends MatchMaker {
 
     const initialDealerHand = new Hand({
       cards: [
-        cardSequence[2],
-        cardSequence[3],
+        cardSequence.cards[2],
+        cardSequence.cards[3],
         Card.empty(),
         Card.empty(),
         Card.empty(),
@@ -102,7 +109,7 @@ export class BlackjackLogic extends MatchMaker {
       cardCount: UInt64.from(2),
     });
 
-    const cardSequenceHash = Poseidon.hash(cardSequence.map((card) => card.value.toFields()[0]));
+    const cardSequenceHash = Poseidon.hash(cardSequence.cards.map((card) => card.value.toFields()[0]));
 
     await this.gamesHand.set(
         Provable.if(shouldUpdate, currentGameId, UInt64.from(0)),
@@ -117,45 +124,68 @@ export class BlackjackLogic extends MatchMaker {
     return;
   }
 
-  private drawCard(cardSequence: Card[], currentCardIndex: UInt64): Card {
+  private drawCard(cardSequence: CardList, currentCardIndex: UInt64): Card {
+    const maxCards = cardSequence.cards.length;
+    let selectedCard = Card.empty();
+  
+    for (let i = 0; i < maxCards; i++) {
+      const isCurrentIndex = currentCardIndex.equals(UInt64.from(i));
+
+      //@ts-ignore
+      selectedCard = Provable.if(isCurrentIndex, cardSequence.cards[i], selectedCard);
+    }
+  
     assert(
-        currentCardIndex.lessThan(UInt64.from(cardSequence.length)),
-        'No more cards in the sequence'
+      currentCardIndex.lessThan(UInt64.from(maxCards)),
+      'No more cards in the sequence'
     );
-    return cardSequence[Number(currentCardIndex.toBigInt())];
+  
+    return selectedCard;
   }
+  
 
   private calculateHandValue(hand: Hand): UInt64 {
     let total = UInt64.from(0);
     let aceCount = UInt64.from(0);
-
-    for (let i = 0; i < hand.cardCount.toBigInt(); i++) {
+    const maxCards = 5;
+  
+    for (let i = 0; i < maxCards; i++) {
+      const inHand = hand.cardCount.greaterThan(UInt64.from(i));
       const card = hand.cards[i];
-      if (card.value.greaterThan(UInt64.from(0))) {
-        if (card.value.greaterThan(UInt64.from(10))) {
-          total = total.add(UInt64.from(10));
-        } else if (card.value.equals(UInt64.from(1))) {
-          aceCount = aceCount.add(UInt64.from(1));
-        } else {
-          total = total.add(card.value);
-        }
-      }
+  
+      const value = card.value;
+      const isAce = value.equals(UInt64.from(1));
+      const isFaceCard = value.greaterThan(UInt64.from(10));
+  
+      const cardValue = Provable.if(
+        isFaceCard,
+        UInt64.from(10),
+        Provable.if(isAce, UInt64.from(0), value)
+      );
+  
+      total = Provable.if(inHand, total.add(cardValue), total);
+      aceCount = Provable.if(inHand.and(isAce), aceCount.add(UInt64.from(1)), aceCount);
     }
-
+  
     // Handle Aces
-    for (let i = 0; i < aceCount.toBigInt(); i++) {
-      if (total.add(UInt64.from(11)).lessThanOrEqual(UInt64.from(21))) {
-        total = total.add(UInt64.from(11));
-      } else {
-        total = total.add(UInt64.from(1));
-      }
+    for (let i = 0; i < maxCards; i++) {
+      const hasAceLeft = aceCount.greaterThan(UInt64.from(i));
+      const totalWith11 = total.add(UInt64.from(11));
+      const canUse11 = totalWith11.lessThanOrEqual(UInt64.from(21));
+  
+      total = Provable.if(
+        hasAceLeft,
+        Provable.if(canUse11, totalWith11, total.add(UInt64.from(1))),
+        total
+      );
     }
-
+  
     return total;
   }
+  
 
   @runtimeMethod()
-  public async hit(gameId: UInt64, cardSequence: Card[]): Promise<void> {
+  public async hit(gameId: UInt64, cardSequence: CardList): Promise<void> {
     const gameOption = await this.games.get(gameId);
     assert(gameOption.isSome, 'Invalid game id');
     const game = gameOption.value;
@@ -173,8 +203,17 @@ export class BlackjackLogic extends MatchMaker {
     const currentCardIndex = gameHand.currentCardIndex;
 
     const newCard = this.drawCard(cardSequence, currentCardIndex);
-    playerHand.cards[Number(playerHand.cardCount.toBigInt())] = newCard;
+    const maxCards = 5;
+
+    for (let i = 0; i < maxCards; i++) {
+      const isCurrentIndex = playerHand.cardCount.equals(UInt64.from(i));
+
+      //@ts-ignore
+      playerHand.cards[i] = Provable.if(isCurrentIndex, newCard, playerHand.cards[i]);
+    }
+
     playerHand.cardCount = playerHand.cardCount.add(UInt64.from(1));
+
 
     const handValue = this.calculateHandValue(playerHand);
 
@@ -200,7 +239,7 @@ export class BlackjackLogic extends MatchMaker {
   }
 
   @runtimeMethod()
-  public async stand(gameId: UInt64, cardSequence: Card[]): Promise<void> {
+  public async stand(gameId: UInt64, cardSequence: CardList): Promise<void> {
     const gameOption = await this.games.get(gameId);
     assert(gameOption.isSome, 'Invalid game id');
     const game = gameOption.value;
@@ -220,7 +259,7 @@ export class BlackjackLogic extends MatchMaker {
   @runtimeMethod()
   public async doubleDown(
       gameId: UInt64,
-      cardSequence: Card[]
+      cardSequence: CardList
   ): Promise<void> {
     const gameOption = await this.games.get(gameId);
     assert(gameOption.isSome, 'Invalid game id');
@@ -263,7 +302,7 @@ export class BlackjackLogic extends MatchMaker {
   @runtimeMethod()
   private async dealerPlay(
       gameId: UInt64,
-      cardSequence: Card[]
+      cardSequence: CardList
   ): Promise<void> {
     const gameOption = await this.games.get(gameId);
     assert(gameOption.isSome, 'Invalid game id');
@@ -277,12 +316,21 @@ export class BlackjackLogic extends MatchMaker {
     let dealerValue = this.calculateHandValue(dealerHand);
     let currentCardIndex = gameHand.currentCardIndex;
 
+    const maxCards = 5; // Assuming max 5 cards in hand
+
     while (
         dealerValue.lessThan(UInt64.from(17)) &&
-        dealerHand.cardCount.lessThan(UInt64.from(5))
-        ) {
+        dealerHand.cardCount.lessThan(UInt64.from(maxCards))
+    ) {
       const newCard = this.drawCard(cardSequence, currentCardIndex);
-      dealerHand.cards[Number(dealerHand.cardCount.value.toBigInt())] = newCard;
+
+      // Update dealerHand.cards using fixed-size loop and Provable.if
+      for (let i = 0; i < maxCards; i++) {
+        const isCurrentIndex = dealerHand.cardCount.equals(UInt64.from(i));
+        //@ts-ignore
+        dealerHand.cards[i] = Provable.if(isCurrentIndex, newCard, dealerHand.cards[i]);
+      }
+
       dealerHand.cardCount = dealerHand.cardCount.add(UInt64.from(1));
       dealerValue = this.calculateHandValue(dealerHand);
       currentCardIndex = currentCardIndex.add(UInt64.from(1));
@@ -309,6 +357,7 @@ export class BlackjackLogic extends MatchMaker {
     await this.gamesHand.set(gameId, gameHand);
     await this.endGame(gameId, game, gameHand);
   }
+
 
   private async endGame(
       gameId: UInt64,
@@ -357,7 +406,7 @@ export class BlackjackLogic extends MatchMaker {
   @runtimeMethod()
   public async verifyCardSequence(
       gameId: UInt64,
-      cardSequence: Card[]
+      cardSequence: CardList
   ): Promise<void> {
     const gameHandOption = await this.gamesHand.get(gameId);
     assert(gameHandOption.isSome, 'Game hand not found');
@@ -373,7 +422,7 @@ export class BlackjackLogic extends MatchMaker {
     );
 
     // Verify the hash of the revealed sequence matches the stored hash
-    const revealedHash = Poseidon.hash(cardSequence.map((card) => card.value.toFields()[0]));
+    const revealedHash = Poseidon.hash(cardSequence.cards.map((card) => card.value.toFields()[0]));
     assert(
         revealedHash.equals(gameHand.cardSequenceHash),
         'Hash mismatch'
