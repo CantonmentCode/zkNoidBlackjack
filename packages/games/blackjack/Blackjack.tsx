@@ -160,7 +160,7 @@ function BlackjackGame() {
     let value = 0;
     let aces = 0;
     for (let card of hand) {
-      const cardValue = card.value.toNumber();
+      const cardValue = Number(card.value.value.toBigInt());
       if (cardValue === 1) {
         aces += 1;
         value += 11;
@@ -175,7 +175,7 @@ function BlackjackGame() {
       aces -= 1;
     }
     return value;
-  };
+  };  
 
   const startGame = async () => {
     const numericBet = parseInt(bet);
@@ -268,15 +268,13 @@ function BlackjackGame() {
   }, [gameState]);
 
   const renderCard = (card, index, isHidden = false) => {
-    const cardValue = card.value.toNumber();
-    const cardSuit = card.suit.toNumber();
+    console.log("cardcardcard: ", card)
+    const cardValue = Number(card.value.value.toBigInt());
+    const cardSuit = Number(card.suit.value.toBigInt());
     const valueSymbol = valueSymbols[cardValue];
     const suitSymbol = suitSymbols[cardSuit];
     return (
-      <div
-        key={index}
-        className={`card ${isHidden ? 'hidden-card' : ''}`}
-      >
+      <div key={index} className={`card ${isHidden ? 'hidden-card' : ''}`}>
         {isHidden ? '?' : `${valueSymbol}${suitSymbol}`}
       </div>
     );
