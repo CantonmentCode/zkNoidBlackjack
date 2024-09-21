@@ -7,6 +7,8 @@ import { tileVilleConfig } from "./tileville/config";
 import { pokerConfig } from "./poker/config";
 import { thimblerigConfig } from "./thimblerig/config";
 import { gameTemplateConfig } from "./game-template/config";
+import { blackjackConfig } from "./blackjack/config";
+
 
 export const zkNoidConfig = createConfig({
   games: [
@@ -18,5 +20,6 @@ export const zkNoidConfig = createConfig({
     pokerConfig,
     arkanoidConfig,
     numberGuessingConfig,
+    blackjackConfig
   ],
 });
