@@ -28,8 +28,6 @@ export class Hand extends Struct({
 export class GameInfo extends Struct({
   player: PublicKey,
   dealer: PublicKey,
-  // playerHand: Hand,
-  // dealerHand: Hand,
   currentTurn: PublicKey,
   lastMoveBlockHeight: UInt64,
   bet: ProtoUInt64,
@@ -41,76 +39,97 @@ export class GameHand extends Struct({
   dealerHand: Hand,
   cardSequenceHash: Field,
   currentCardIndex: UInt64,
-
 }) {}
 
 @runtimeModule()
 export class BlackjackLogic extends MatchMaker {
   @state() public games = StateMap.from<UInt64, GameInfo>(UInt64, GameInfo);
   @state() public gamesNum = State.from<UInt64>(UInt64);
-  @state() public gamesHand = StateMap.from(UInt64, GameHand)(UInt64, GameHand)
+  @state() public gamesHand = StateMap.from<UInt64, GameHand>(UInt64, GameHand);
 
-  public override async initGame(lobby: Lobby, shouldUpdate: Bool): Promise<UInt64> {
+  public override async initGame(
+      lobby: Lobby,
+      shouldUpdate: Bool
+  ): Promise<UInt64> {
     const currentGameId = lobby.id;
 
     await this.games.set(
-      Provable.if(shouldUpdate, currentGameId, UInt64.from(0)),
-      new GameInfo({
-        player: lobby.players[0],
-        dealer: lobby.players[1],
-        // playerHand: initialPlayerHand,
-        // dealerHand: initialDealerHand,
-        currentTurn: lobby.players[0],
-        lastMoveBlockHeight: this.network.block.height,
-        bet: lobby.participationFee,
-        gameState: UInt64.from(0),
-      }),
+        Provable.if(shouldUpdate, currentGameId, UInt64.from(0)),
+        new GameInfo({
+          player: lobby.players[0],
+          dealer: lobby.players[1],
+          currentTurn: lobby.players[0],
+          lastMoveBlockHeight: this.network.block.height,
+          bet: lobby.participationFee,
+          gameState: UInt64.from(0),
+        })
     );
 
     await this.gameFund.set(
-      currentGameId,
-      ProtoUInt64.from(lobby.participationFee),
+        currentGameId,
+        ProtoUInt64.from(lobby.participationFee)
     );
 
     return await super.initGame(lobby, shouldUpdate);
   }
 
   @runtimeMethod()
-  public async startBlackjackGame(lobby: Lobby, shouldUpdate: Bool, cardSequence: Card[]): Promise<Void> {
+  public async startBlackjackGame(
+      lobby: Lobby,
+      shouldUpdate: Bool,
+      cardSequence: Card[]
+  ): Promise<Void> {
     const currentGameId = lobby.id;
     const initialPlayerHand = new Hand({
-      cards: [cardSequence[0], cardSequence[1], Card.empty(), Card.empty(), Card.empty()],
+      cards: [
+        cardSequence[0],
+        cardSequence[1],
+        Card.empty(),
+        Card.empty(),
+        Card.empty(),
+      ],
       cardCount: UInt64.from(2),
     });
 
     const initialDealerHand = new Hand({
-      cards: [cardSequence[2], cardSequence[3], Card.empty(), Card.empty(), Card.empty()],,
+      cards: [
+        cardSequence[2],
+        cardSequence[3],
+        Card.empty(),
+        Card.empty(),
+        Card.empty(),
+      ],
       cardCount: UInt64.from(2),
     });
 
-    const cardSequenceHash = Poseidon.hash(cardSequence);
+    const cardSequenceHash = Poseidon.hash(cardSequence.map((card) => card.value.toFields()[0]));
 
     await this.gamesHand.set(
-      Provable.if(shouldUpdate, currentGameId, UInt64.from(0)),
-      new GameHand({
-        playerHand: initialPlayerHand,
-        dealerHand: initialDealerHand,
-        cardSequenceHash: cardSequenceHash,
-        currentCardIndex: UInt64.from(4)
-      
-      }),
+        Provable.if(shouldUpdate, currentGameId, UInt64.from(0)),
+        new GameHand({
+          playerHand: initialPlayerHand,
+          dealerHand: initialDealerHand,
+          cardSequenceHash: cardSequenceHash,
+          currentCardIndex: UInt64.from(4),
+        })
     );
 
-    return 
+    return;
   }
 
-
+  private drawCard(cardSequence: Card[], currentCardIndex: UInt64): Card {
+    assert(
+        currentCardIndex.lessThan(UInt64.from(cardSequence.length)),
+        'No more cards in the sequence'
+    );
+    return cardSequence[Number(currentCardIndex.toBigInt())];
+  }
 
   private calculateHandValue(hand: Hand): UInt64 {
     let total = UInt64.from(0);
     let aceCount = UInt64.from(0);
 
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < hand.cardCount.toBigInt(); i++) {
       const card = hand.cards[i];
       if (card.value.greaterThan(UInt64.from(0))) {
         if (card.value.greaterThan(UInt64.from(10))) {
@@ -137,163 +156,228 @@ export class BlackjackLogic extends MatchMaker {
 
   @runtimeMethod()
   public async hit(gameId: UInt64, cardSequence: Card[]): Promise<void> {
-    const game = await this.games.get(gameId);
-    assert(game.isSome, 'Invalid game id');
-    assert(game.value.gameState.equals(UInt64.from(0)), 'Game has ended');
-    assert(game.value.currentTurn.equals(game.value.player), 'Not player\'s turn');
+    const gameOption = await this.games.get(gameId);
+    assert(gameOption.isSome, 'Invalid game id');
+    const game = gameOption.value;
+    assert(game.gameState.equals(UInt64.from(0)), 'Game has ended');
+    assert(
+        game.currentTurn.equals(game.player),
+        "Not player's turn"
+    );
 
-    const updatedHand = new Hand({
-      cards: [
-        ...game.value.playerHand.cards.slice(0, game.value.playerHand.cardCount.toNumber()),
-        // TODO implement draw card that increment currentCardIndex
-        this.drawCard(cardSequence),
-        ...game.value.playerHand.cards.slice(game.value.playerHand.cardCount.toNumber() + 1),
-      ],
-      cardCount: game.value.playerHand.cardCount.add(UInt64.from(1)),
-    });
+    const gameHandOption = await this.gamesHand.get(gameId);
+    assert(gameHandOption.isSome, 'Game hand not found');
+    const gameHand = gameHandOption.value;
 
-    const handValue = this.calculateHandValue(updatedHand);
+    const playerHand = gameHand.playerHand;
+    const currentCardIndex = gameHand.currentCardIndex;
 
-    game.value.playerHand = updatedHand;
-    game.value.currentCardIndex = game.value.currentCardIndex.add(UInt64.from(1));
-    game.value.lastMoveBlockHeight = this.network.block.height;
+    const newCard = this.drawCard(cardSequence, currentCardIndex);
+    playerHand.cards[Number(playerHand.cardCount.toBigInt())] = newCard;
+    playerHand.cardCount = playerHand.cardCount.add(UInt64.from(1));
+
+    const handValue = this.calculateHandValue(playerHand);
+
+    gameHand.playerHand = playerHand;
+    gameHand.currentCardIndex = currentCardIndex.add(UInt64.from(1));
+    game.lastMoveBlockHeight = this.network.block.height;
 
     if (handValue.greaterThan(UInt64.from(21))) {
-      game.value.gameState = UInt64.from(2); // Dealer wins
-      await this.endGame(gameId, game.value);
-    } else if (handValue.equals(UInt64.from(21)) || updatedHand.cardCount.equals(UInt64.from(5))) {
-      game.value.currentTurn = game.value.dealer;
+      game.gameState = UInt64.from(2); // Dealer wins
+      await this.endGame(gameId, game, gameHand);
+    } else if (
+        handValue.equals(UInt64.from(21)) ||
+        playerHand.cardCount.equals(UInt64.from(5))
+    ) {
+      game.currentTurn = game.dealer;
+      await this.games.set(gameId, game);
+      await this.gamesHand.set(gameId, gameHand);
+      await this.dealerPlay(gameId, cardSequence);
+    } else {
+      await this.games.set(gameId, game);
+      await this.gamesHand.set(gameId, gameHand);
     }
-
-    await this.games.set(gameId, game.value);
   }
 
   @runtimeMethod()
-  public async stand(gameId: UInt64): Promise<void> {
-    const game = await this.games.get(gameId);
-    assert(game.isSome, 'Invalid game id');
-    assert(game.value.gameState.equals(UInt64.from(0)), 'Game has ended');
-    assert(game.value.currentTurn.equals(game.value.player), 'Not player\'s turn');
+  public async stand(gameId: UInt64, cardSequence: Card[]): Promise<void> {
+    const gameOption = await this.games.get(gameId);
+    assert(gameOption.isSome, 'Invalid game id');
+    const game = gameOption.value;
+    assert(game.gameState.equals(UInt64.from(0)), 'Game has ended');
+    assert(
+        game.currentTurn.equals(game.player),
+        "Not player's turn"
+    );
 
-    game.value.currentTurn = game.value.dealer;
-    game.value.lastMoveBlockHeight = this.network.block.height;
+    game.currentTurn = game.dealer;
+    game.lastMoveBlockHeight = this.network.block.height;
 
-    await this.games.set(gameId, game.value);
+    await this.games.set(gameId, game);
+    await this.dealerPlay(gameId, cardSequence);
   }
 
   @runtimeMethod()
-  public async doubleDown(gameId: UInt64, cardSequence: Card[]): Promise<void> {
-    const game = await this.games.get(gameId);
-    assert(game.isSome, 'Invalid game id');
-    assert(game.value.gameState.equals(UInt64.from(0)), 'Game has ended');
-    assert(game.value.currentTurn.equals(game.value.player), 'Not player\'s turn');
-    assert(game.value.playerHand.cardCount.equals(UInt64.from(2)), 'Can only double down on initial hand');
+  public async doubleDown(
+      gameId: UInt64,
+      cardSequence: Card[]
+  ): Promise<void> {
+    const gameOption = await this.games.get(gameId);
+    assert(gameOption.isSome, 'Invalid game id');
+    const game = gameOption.value;
+    assert(game.gameState.equals(UInt64.from(0)), 'Game has ended');
+    assert(
+        game.currentTurn.equals(game.player),
+        "Not player's turn"
+    );
 
-    game.value.bet = game.value.bet.mul(UInt64.from(2));
-    await this.gameFund.set(gameId, ProtoUInt64.from(game.value.bet));
+    const gameHandOption = await this.gamesHand.get(gameId);
+    assert(gameHandOption.isSome, 'Game hand not found');
+    const gameHand = gameHandOption.value;
 
-    const updatedHand = new Hand({
-      cards: [...game.value.playerHand.cards.slice(0, 2), this.drawCard(cardSequence), Card.empty(), Card.empty()],
-      cardCount: UInt64.from(3),
-    });
+    const playerHand = gameHand.playerHand;
+    assert(
+        playerHand.cardCount.equals(UInt64.from(2)),
+        'Can only double down on initial hand'
+    );
 
-    game.value.playerHand = updatedHand;
-    game.value.currentCardIndex = game.value.currentCardIndex.add(UInt64.from(1));
-    game.value.currentTurn = game.value.dealer;
-    game.value.lastMoveBlockHeight = this.network.block.height;
+    game.bet = game.bet.mul(2);
+    await this.gameFund.set(gameId, ProtoUInt64.from(game.bet));
 
-    await this.games.set(gameId, game.value);
+    const currentCardIndex = gameHand.currentCardIndex;
+    const newCard = this.drawCard(cardSequence, currentCardIndex);
+
+    playerHand.cards[2] = newCard;
+    playerHand.cardCount = UInt64.from(3);
+
+    gameHand.playerHand = playerHand;
+    gameHand.currentCardIndex = currentCardIndex.add(UInt64.from(1));
+    game.currentTurn = game.dealer;
+    game.lastMoveBlockHeight = this.network.block.height;
+
+    await this.games.set(gameId, game);
+    await this.gamesHand.set(gameId, gameHand);
+    await this.dealerPlay(gameId, cardSequence);
   }
 
   @runtimeMethod()
-  private async dealerPlay(gameId: UInt64, cardSequence: Card[]): Promise<void> {
-    const game = await this.games.get(gameId);
-    assert(game.isSome, 'Invalid game id');
+  private async dealerPlay(
+      gameId: UInt64,
+      cardSequence: Card[]
+  ): Promise<void> {
+    const gameOption = await this.games.get(gameId);
+    assert(gameOption.isSome, 'Invalid game id');
+    const game = gameOption.value;
 
-    let dealerHand = game.value.dealerHand;
+    const gameHandOption = await this.gamesHand.get(gameId);
+    assert(gameHandOption.isSome, 'Game hand not found');
+    const gameHand = gameHandOption.value;
+
+    let dealerHand = gameHand.dealerHand;
     let dealerValue = this.calculateHandValue(dealerHand);
-    let currentCardIndex = game.value.currentCardIndex;
+    let currentCardIndex = gameHand.currentCardIndex;
 
-    while (dealerValue.lessThan(UInt64.from(17)) && dealerHand.cardCount.lessThan(UInt64.from(5))) {
-      const newCard = this.drawCard(cardSequence)
-      dealerHand = new Hand({
-        cards: [
-          ...dealerHand.cards.slice(0, dealerHand.cardCount.toNumber()),
-          newCard,
-          ...dealerHand.cards.slice(dealerHand.cardCount.toNumber() + 1),
-        ],
-        cardCount: dealerHand.cardCount.add(UInt64.from(1)),
-      });
+    while (
+        dealerValue.lessThan(UInt64.from(17)) &&
+        dealerHand.cardCount.lessThan(UInt64.from(5))
+        ) {
+      const newCard = this.drawCard(cardSequence, currentCardIndex);
+      dealerHand.cards[Number(dealerHand.cardCount.value.toBigInt())] = newCard;
+      dealerHand.cardCount = dealerHand.cardCount.add(UInt64.from(1));
       dealerValue = this.calculateHandValue(dealerHand);
       currentCardIndex = currentCardIndex.add(UInt64.from(1));
     }
 
-    game.value.dealerHand = dealerHand;
-    game.value.currentCardIndex = currentCardIndex;
-    game.value.lastMoveBlockHeight = this.network.block.height;
+    gameHand.dealerHand = dealerHand;
+    gameHand.currentCardIndex = currentCardIndex;
+    game.lastMoveBlockHeight = this.network.block.height;
 
-    const playerValue = this.calculateHandValue(game.value.playerHand);
+    const playerValue = this.calculateHandValue(gameHand.playerHand);
 
-    if (dealerValue.greaterThan(UInt64.from(21)) || playerValue.greaterThan(dealerValue)) {
-      game.value.gameState = UInt64.from(1); // Player wins
+    if (
+        dealerValue.greaterThan(UInt64.from(21)) ||
+        playerValue.greaterThan(dealerValue)
+    ) {
+      game.gameState = UInt64.from(1); // Player wins
     } else if (dealerValue.greaterThan(playerValue)) {
-      game.value.gameState = UInt64.from(2); // Dealer wins
+      game.gameState = UInt64.from(2); // Dealer wins
     } else {
-      game.value.gameState = UInt64.from(3); // Tie
+      game.gameState = UInt64.from(3); // Tie
     }
 
-    await this.games.set(gameId, game.value);
-    await this.endGame(gameId, game.value);
+    await this.games.set(gameId, game);
+    await this.gamesHand.set(gameId, gameHand);
+    await this.endGame(gameId, game, gameHand);
   }
 
-  private async endGame(gameId: UInt64, game: GameInfo): Promise<void> {
+  private async endGame(
+      gameId: UInt64,
+      game: GameInfo,
+      gameHand: GameHand
+  ): Promise<void> {
     if (game.gameState.equals(UInt64.from(1))) {
       // Player wins
       await this.acquireFunds(
-        gameId,
-        game.player,
-        game.dealer,
-        ProtoUInt64.from(2),
-        ProtoUInt64.from(0),
-        ProtoUInt64.from(2),
+          gameId,
+          game.player,
+          game.dealer,
+          ProtoUInt64.from(2),
+          ProtoUInt64.from(0),
+          ProtoUInt64.from(2)
       );
     } else if (game.gameState.equals(UInt64.from(2))) {
       // Dealer wins
       await this.acquireFunds(
-        gameId,
-        game.dealer,
-        game.player,
-        ProtoUInt64.from(2),
-        ProtoUInt64.from(0),
-        ProtoUInt64.from(2),
+          gameId,
+          game.dealer,
+          game.player,
+          ProtoUInt64.from(2),
+          ProtoUInt64.from(0),
+          ProtoUInt64.from(2)
       );
     } else {
       // Tie
       await this.acquireFunds(
-        gameId,
-        game.player,
-        game.dealer,
-        ProtoUInt64.from(1),
-        ProtoUInt64.from(1),
-        ProtoUInt64.from(2),
+          gameId,
+          game.player,
+          game.dealer,
+          ProtoUInt64.from(1),
+          ProtoUInt64.from(1),
+          ProtoUInt64.from(2)
       );
     }
 
     await this.activeGameId.set(game.player, UInt64.from(0));
     await this.activeGameId.set(game.dealer, UInt64.from(0));
 
+
     await this._onLobbyEnd(gameId, Bool(true));
   }
 
   @runtimeMethod()
-  public async verifyCardSequence(gameId: UInt64, cardSequence: Card[]): Promise<void> {
-    const game = await this.games.get(gameId);
-    assert(game.isSome, 'Invalid game id');
-    assert(game.value.gameState.greaterThan(UInt64.from(0)), 'Game has not ended');
+  public async verifyCardSequence(
+      gameId: UInt64,
+      cardSequence: Card[]
+  ): Promise<void> {
+    const gameHandOption = await this.gamesHand.get(gameId);
+    assert(gameHandOption.isSome, 'Game hand not found');
+    const gameHand = gameHandOption.value;
+
+    const gameOption = await this.games.get(gameId);
+    assert(gameOption.isSome, 'Invalid game id');
+    const game = gameOption.value;
+
+    assert(
+        game.gameState.greaterThan(UInt64.from(0)),
+        'Game has not ended'
+    );
 
     // Verify the hash of the revealed sequence matches the stored hash
-    const revealedHash = Poseidon.hash(cardSequence);
-    assert(revealedHash.equals(game.value.cardSequenceHash), 'Hash mismatch');
+    const revealedHash = Poseidon.hash(cardSequence.map((card) => card.value.toFields()[0]));
+    assert(
+        revealedHash.equals(gameHand.cardSequenceHash),
+        'Hash mismatch'
+    );
 
     // If all checks pass, the card sequence is verified
     console.log('Card sequence verified successfully');

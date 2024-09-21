@@ -17,6 +17,6 @@ export * from './environments/client.config';
 export { Balances } from './framework';
 
 export { GuessGame } from './games/number_guessing/index.js';
-export { BlackjackGame } from './games/blackjack/index.js';
+export { BlackjackLogic } from './games/blackjack/index.js';
 
 export { ClientAppChain, ProtokitLibrary, UInt64 as ProtoUInt64 };

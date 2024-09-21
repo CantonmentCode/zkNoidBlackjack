@@ -1,3 +1,3 @@
-import { BlackjackGame } from "./BlackjackGame.js";
+import { BlackjackLogic } from "./BlackjackGame";
 
-export { BlackjackGame };
+export { BlackjackLogic };
