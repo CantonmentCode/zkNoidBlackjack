@@ -48,7 +48,7 @@ export class GameHand extends Struct({
 export class BlackjackLogic extends MatchMaker {
   @state() public games = StateMap.from<UInt64, GameInfo>(UInt64, GameInfo);
   @state() public gamesNum = State.from<UInt64>(UInt64);
-  @state() public gamesHand = StateMap.from(UInt64, GameHand)(UInt64, GameHand)
+  @state() public gamesHand = StateMap.from<UInt64, GameHand>(UInt64, GameHand)
 
   public override async initGame(lobby: Lobby, shouldUpdate: Bool): Promise<UInt64> {
     const currentGameId = lobby.id;
@@ -84,7 +84,7 @@ export class BlackjackLogic extends MatchMaker {
     });
 
     const initialDealerHand = new Hand({
-      cards: [cardSequence[2], cardSequence[3], Card.empty(), Card.empty(), Card.empty()],,
+      cards: [cardSequence[2], cardSequence[3], Card.empty(), Card.empty(), Card.empty()],
       cardCount: UInt64.from(2),
     });
 
@@ -103,8 +103,6 @@ export class BlackjackLogic extends MatchMaker {
 
     return 
   }
-
-
 
   private calculateHandValue(hand: Hand): UInt64 {
     let total = UInt64.from(0);
