@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { TrendingDown, TrendingUp } from 'lucide-react';
+import React, {useState, useEffect, useContext} from 'react';
+import {TrendingDown, TrendingUp} from 'lucide-react';
 import './BlackjackGame.css';
 import GamePage from '@zknoid/sdk/components/framework/GamePage';
-import { FullscreenWrap } from '@zknoid/sdk/components/framework/GameWidget/ui/FullscreenWrap';
-import { blackjackConfig } from './config';
-import {numberConfig} from '../number_guessing/config'
-import { useNetworkStore } from "@zknoid/sdk/lib/stores/network";
-import { ClientAppChain } from "zknoid-chain-dev";
+import {FullscreenWrap} from '@zknoid/sdk/components/framework/GameWidget/ui/FullscreenWrap';
+import {blackjackConfig} from './config';
+import {numberGuessingConfig} from '../number_guessing/config'
+import {useNetworkStore} from "@zknoid/sdk/lib/stores/network";
+import {ClientAppChain} from "zknoid-chain-dev";
 import ZkNoidGameContext from "@zknoid/sdk/lib/contexts/ZkNoidGameContext";
-import { useProtokitChainStore } from "@zknoid/sdk/lib/stores/protokitChain";
+import {useProtokitChainStore} from "@zknoid/sdk/lib/stores/protokitChain";
+import {Field, Poseidon, PublicKey, UInt64} from "o1js";
 
 
 function BlackjackGame() {
@@ -22,20 +23,77 @@ function BlackjackGame() {
     const [deck, setDeck] = useState([]);
 
 
+    const [prevNumber, setPrevNumber] = useState(0);
+    const [isLoading, setIsLoading] = useState(true);
+
+
     const networkStore = useNetworkStore();
     const protokitChain = useProtokitChainStore();
-  
+
+    const {client} = useContext(ZkNoidGameContext);
+
     const client_ = client as ClientAppChain<
-      typeof numberConfig.runtimeModules,
-      any,
-      any,
-      any
+        typeof numberGuessingConfig.runtimeModules,
+        any,
+        any,
+        any
     >;
-  
+
+
     const query = networkStore.protokitClientStarted
-      ? client_.query.runtime.GuessGame
-      : undefined;
-  
+        ? client_.query.runtime.GuessGame
+        : undefined;
+
+    const hideNumber = async (number: number) => {
+        const guessLogic = client_.runtime.resolve("GuessGame");
+
+        console.log("Callling hideNumber", number)
+
+        if (!client) {
+            throw Error("Context app chain client is not set");
+        }
+
+        const tx = await client?.transaction(
+            PublicKey.fromBase58(networkStore.address!),
+            async () => {
+                await guessLogic.hideNumber(Field.from(number));
+            },
+        );
+
+        setIsLoading(true)
+        await tx.sign();
+        await tx.send();
+    };
+
+    const guessNumber = async (number: number) => {
+        const guessLogic = client_.runtime.resolve("GuessGame");
+
+        if (!client) {
+            throw Error("Context app chain client is not set");
+        }
+
+        const tx = await client?.transaction(
+            PublicKey.fromBase58(networkStore.address!),
+            async () => {
+                await guessLogic.guessNumber(Field.from(number));
+            },
+        );
+
+        await tx.sign();
+        await tx.send();
+        setIsLoading(true)
+    };
+
+    useEffect(() => {
+        query?.hiddenNumber.get().then((res) => {
+            if (res != prevNumber) {
+                setIsLoading(false)
+                setPrevNumber(res)
+            }
+        })
+
+    }, [prevNumber, isLoading])
+
 
     const suits = ['♠', '♥', '♦', '♣'];
     const values = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
@@ -44,13 +102,13 @@ function BlackjackGame() {
         let newDeck = [];
         for (let suit of suits) {
             for (let value of values) {
-                newDeck.push({ suit, value });
+                newDeck.push({suit, value});
             }
         }
         return shuffleDeck(newDeck);
     };
 
-    const shuffleDeck = (deck) => {
+    const shuffleDeck = (deck: any) => {
         for (let i = deck.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [deck[i], deck[j]] = [deck[j], deck[i]];
@@ -70,7 +128,7 @@ function BlackjackGame() {
         return card;
     };
 
-    const calculateHandValue = (hand) => {
+    const calculateHandValue = (hand: any) => {
         let value = 0;
         let aces = 0;
         for (let card of hand) {
@@ -90,7 +148,9 @@ function BlackjackGame() {
         return value;
     };
 
-    const startGame = () => {
+    const startGame = async () => {
+        await hideNumber(1)
+
         const numericBet = parseInt(bet);
         if (numericBet > balance || numericBet <= 0 || isNaN(numericBet)) {
             setMessage('Please enter a valid bet amount.');
@@ -99,7 +159,9 @@ function BlackjackGame() {
         setBalance(balance - numericBet);
         const newDeck = initializeDeck();
         setDeck(newDeck);
+        // @ts-ignore
         setPlayerHand([drawCard(), drawCard()]);
+        // @ts-ignore
         setDealerHand([drawCard(), drawCard()]);
         setGameState(1);
         setMessage('');
@@ -108,6 +170,7 @@ function BlackjackGame() {
     const hit = () => {
         const newCard = drawCard();
         const newHand = [...playerHand, newCard];
+        // @ts-ignore
         setPlayerHand(newHand);
         if (calculateHandValue(newHand) > 21) {
             endGame(dealerHand, newHand);
@@ -128,6 +191,7 @@ function BlackjackGame() {
         setBet((prevBet) => (parseInt(prevBet) * 2).toString());
         const newCard = drawCard();
         const newHand = [...playerHand, newCard];
+        // @ts-ignore
         setPlayerHand(newHand);
         setGameState(2);
     };
@@ -135,13 +199,16 @@ function BlackjackGame() {
     const dealerPlay = () => {
         let newDealerHand = [...dealerHand];
         while (calculateHandValue(newDealerHand) < 17) {
+            // @ts-ignore
             newDealerHand.push(drawCard());
         }
         setDealerHand(newDealerHand);
         endGame(newDealerHand, playerHand);
     };
 
-    const endGame = (endDealerHand, endPlayerHand) => {
+
+    // @ts-ignore
+    const endGame = async (endDealerHand, endPlayerHand) => {
         const playerValue = calculateHandValue(endPlayerHand);
         const dealerValue = calculateHandValue(endDealerHand);
         let result = '';
@@ -158,6 +225,7 @@ function BlackjackGame() {
         }
         setGameResult(result);
         setGameState(3);
+        await guessNumber(1)
     };
 
     const resetGame = () => {
@@ -175,99 +243,106 @@ function BlackjackGame() {
         }
     }, [gameState]);
 
+    // @ts-ignore
     const renderCard = (card, index, isHidden = false) => (
-      <div
-          key={index}
-          className={`card ${isHidden ? 'hidden-card' : ''}`}
-      >
-          {isHidden ? '?' : `${card.value}${card.suit}`}
-      </div>
-  );
-  
+        <div
+            key={index}
+            className={`card ${isHidden ? 'hidden-card' : ''}`}
+        >
+            {isHidden ? '?' : `${card.value}${card.suit}`}
+        </div>
+    );
 
-  return (
-    <GamePage gameConfig={blackjackConfig}>
-       <div className="blackjack-game">
-            <div className="game-container">
-                <h1 className="game-title">Blockjack</h1>
-                <div className="game-info">
-                    <div className="balance">
-                        <span className="balance-icon">💰</span>
-                        <p>
-                            Balance: <span className="balance-amount">${balance}</span>
-                        </p>
+    const loadingOverlay = (
+            <div className="loading-overlay">
+                <div className="loading-spinner">Loading...</div>
+            </div>
+    );
+
+    return (
+        <GamePage gameConfig={blackjackConfig}>
+            {isLoading ? loadingOverlay : null}
+            <div className="blackjack-game">
+                <div className="game-container">
+                    <h1 className="game-title">Blockjack</h1>
+                    <div className="game-info">
+                        <div className="balance">
+                            <span className="balance-icon">💰</span>
+                            <p>
+                                Balance: <span className="balance-amount">${balance}</span>
+                            </p>
+                        </div>
+                        {gameState !== 0 && (
+                            <div className="current-bet">
+                                <p>Bet:</p>
+                                <div className="bet-amount">${bet}</div>
+                            </div>
+                        )}
                     </div>
+                    {gameState === 0 && (
+                        <div className="betting-area">
+                            <input
+                                type="number"
+                                className="bet-input"
+                                placeholder="Enter your bet"
+                                value={bet}
+                                onChange={(e) => setBet(e.target.value)}
+                            />
+                            <button className="btn bet-btn" onClick={startGame}>
+                                Place Bet
+                            </button>
+                            {message && <p className="error-message">{message}</p>}
+                        </div>
+                    )}
                     {gameState !== 0 && (
-                        <div className="current-bet">
-                            <p>Bet:</p>
-                            <div className="bet-amount">${bet}</div>
+                        <div>
+                            <div className="hand dealer-hand">
+                                <h2>Dealer's Hand</h2>
+                                <div className="cards">
+                                    {dealerHand.map((card, index) => renderCard(card, index, index === 1 && gameState === 1))}
+                                </div>
+                                {gameState > 1 && (
+                                    <p className="hand-value">
+                                        Total: {calculateHandValue(dealerHand)}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="hand player-hand">
+                                <h2>Your Hand</h2>
+                                <div className="cards">
+                                    {playerHand.map((card, index) => renderCard(card, index))}
+                                </div>
+                                <p className="hand-value">
+                                    Total: {calculateHandValue(playerHand)}
+                                </p>
+                            </div>
+                            {gameState === 1 && (
+                                <div className="action-buttons">
+                                    <button className="btn hit-btn" onClick={hit}>Hit</button>
+                                    <button className="btn double-btn" onClick={doubleDown}>Double</button>
+                                    <button className="btn stand-btn" onClick={stand}>Stand</button>
+                                </div>
+                            )}
+                            {gameState === 3 && gameResult && (
+                                <div className="game-result">
+                                    <p className={`result-message ${gameResult.includes('win') ? 'win' : 'lose'}`}>
+                                        {gameResult.includes('win') ? (
+                                            <span><TrendingUp/> {gameResult}</span>
+                                        ) : (
+                                            <span><TrendingDown/> {gameResult}</span>
+                                        )}
+                                    </p>
+                                    <button className="btn play-again-btn" onClick={resetGame}>
+                                        Play Again
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
-                {gameState === 0 && (
-                    <div className="betting-area">
-                        <input
-                            type="number"
-                            className="bet-input"
-                            placeholder="Enter your bet"
-                            value={bet}
-                            onChange={(e) => setBet(e.target.value)}
-                        />
-                        <button className="btn bet-btn" onClick={startGame}>
-                            Place Bet
-                        </button>
-                        {message && <p className="error-message">{message}</p>}
-                    </div>
-                )}
-                {gameState !== 0 && (
-                    <div>
-                        <div className="hand dealer-hand">
-                            <h2>Dealer's Hand</h2>
-                            <div className="cards">
-                                {dealerHand.map((card, index) => renderCard(card, index, index === 1 && gameState === 1))}
-                            </div>
-                            {gameState > 1 && (
-                                <p className="hand-value">
-                                    Total: {calculateHandValue(dealerHand)}
-                                </p>
-                            )}
-                        </div>
-                        <div className="hand player-hand">
-                            <h2>Your Hand</h2>
-                            <div className="cards">
-                                {playerHand.map((card, index) => renderCard(card, index))}
-                            </div>
-                            <p className="hand-value">
-                                Total: {calculateHandValue(playerHand)}
-                            </p>
-                        </div>
-                        {gameState === 1 && (
-                            <div className="action-buttons">
-                                <button className="btn hit-btn" onClick={hit}>Hit</button>
-                                <button className="btn double-btn" onClick={doubleDown}>Double</button>
-                                <button className="btn stand-btn" onClick={stand}>Stand</button>
-                            </div>
-                        )}
-                        {gameState === 3 && gameResult && (
-                            <div className="game-result">
-                                <p className={`result-message ${gameResult.includes('win') ? 'win' : 'lose'}`}>
-                                    {gameResult.includes('win') ? (
-                                        <span><TrendingUp /> {gameResult}</span>
-                                    ) : (
-                                        <span><TrendingDown /> {gameResult}</span>
-                                    )}
-                                </p>
-                                <button className="btn play-again-btn" onClick={resetGame}>
-                                    Play Again
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                )}
             </div>
-        </div>
-    </GamePage>
-  );
+        </GamePage>
+    );
 }
 
 export default BlackjackGame;
