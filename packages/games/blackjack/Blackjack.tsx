@@ -244,7 +244,7 @@ function BlackjackGame() {
     <GamePage gameConfig={blackjackConfig}>
        <div className="blackjack-game">
             <div className="game-container">
-                <h1 className="game-title">Blockjack</h1>
+                <h1 className="game-title">Blackjack</h1>
                 <div className="game-info">
                     <div className="balance">
                         <span className="balance-icon">💰</span>
