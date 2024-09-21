@@ -4,7 +4,7 @@ import './BlackjackGame.css';
 import GamePage from '@zknoid/sdk/components/framework/GamePage';
 import { FullscreenWrap } from '@zknoid/sdk/components/framework/GameWidget/ui/FullscreenWrap';
 import { blackjackConfig } from './config';
-import {numberConfig} from '../number_guessing/config'
+// import {numberConfig} from '../number_guessing/config'
 import { useNetworkStore } from "@zknoid/sdk/lib/stores/network";
 import { ClientAppChain } from "zknoid-chain-dev";
 import ZkNoidGameContext from "@zknoid/sdk/lib/contexts/ZkNoidGameContext";
@@ -22,19 +22,19 @@ function BlackjackGame() {
     const [deck, setDeck] = useState([]);
 
 
-    const networkStore = useNetworkStore();
-    const protokitChain = useProtokitChainStore();
+    // const networkStore = useNetworkStore();
+    // const protokitChain = useProtokitChainStore();
   
-    const client_ = client as ClientAppChain<
-      typeof numberConfig.runtimeModules,
-      any,
-      any,
-      any
-    >;
+    // const client_ = client as ClientAppChain<
+    //   typeof numberConfig.runtimeModules,
+    //   any,
+    //   any,
+    //   any
+    // >;
   
-    const query = networkStore.protokitClientStarted
-      ? client_.query.runtime.GuessGame
-      : undefined;
+    // const query = networkStore.protokitClientStarted
+    //   ? client_.query.runtime.GuessGame
+    //   : undefined;
   
 
     const suits = ['♠', '♥', '♦', '♣'];
