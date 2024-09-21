@@ -16,10 +16,17 @@ import { MatchMaker } from '../../engine/MatchMaker';
 import { Lobby } from '../../engine/LobbyManager';
 
 export class Card extends Struct({
-  suit: UInt64,
-  value: UInt64,
-}) {}
+  suit: Field,
+  value: Field,
+}) {
+  static empty(): Card {
+    return new Card({ suit: Field(0), value: Field(0) });
+  }
 
+  hash(): Field {
+    return Poseidon.hash([this.suit, this.value]);
+  }
+}
 export class Hand extends Struct({
   cards: [Card, Card, Card, Card, Card], // Max 5 cards per hand
   cardCount: UInt64,
@@ -145,8 +152,7 @@ export class BlackjackLogic extends MatchMaker {
     const updatedHand = new Hand({
       cards: [
         ...game.value.playerHand.cards.slice(0, game.value.playerHand.cardCount.toNumber()),
-        // TODO implement draw card that increment currentCardIndex
-        this.drawCard(cardSequence),
+        this.drawCard(gameId, cardSequence),
         ...game.value.playerHand.cards.slice(game.value.playerHand.cardCount.toNumber() + 1),
       ],
       cardCount: game.value.playerHand.cardCount.add(UInt64.from(1)),
@@ -193,7 +199,7 @@ export class BlackjackLogic extends MatchMaker {
     await this.gameFund.set(gameId, ProtoUInt64.from(game.value.bet));
 
     const updatedHand = new Hand({
-      cards: [...game.value.playerHand.cards.slice(0, 2), this.drawCard(cardSequence), Card.empty(), Card.empty()],
+      cards: [...game.value.playerHand.cards.slice(0, 2), this.drawCard(gameId,cardSequence), Card.empty(), Card.empty()],
       cardCount: UInt64.from(3),
     });
 
@@ -215,7 +221,7 @@ export class BlackjackLogic extends MatchMaker {
     let currentCardIndex = game.value.currentCardIndex;
 
     while (dealerValue.lessThan(UInt64.from(17)) && dealerHand.cardCount.lessThan(UInt64.from(5))) {
-      const newCard = this.drawCard(cardSequence)
+      const newCard = this.drawCard(gameId, cardSequence)
       dealerHand = new Hand({
         cards: [
           ...dealerHand.cards.slice(0, dealerHand.cardCount.toNumber()),
@@ -297,5 +303,18 @@ export class BlackjackLogic extends MatchMaker {
 
     // If all checks pass, the card sequence is verified
     console.log('Card sequence verified successfully');
+  }
+
+  private drawCard(gameId: UInt64, cardSequence: Card[]): Card {
+    const gameHand = this.gamesHand.get(gameId);    
+    const currentIndex = gameHand.value.currentCardIndex;
+    assert(currentIndex.lessThan(Field(cardSequence.length)), 'No more cards in the sequence');
+
+    const drawnCard = cardSequence[currentIndex.toBigInt()];
+    gameHand.value.currentCardIndex = gameHand.value.currentCardIndex.add(1);
+
+    this.gamesHand.set(this.games, gameHand.value);
+
+    return drawnCard;
   }
 }
