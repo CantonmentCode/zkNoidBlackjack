@@ -22,7 +22,7 @@ export class BlackjackLogic extends RuntimeModule<BlackjackConfig> {
   @runtimeMethod()
   async verifyDeck(deck: Field)
  {
-    let curHiddenNumber = await this.deckHash.get();
-    assert(curHiddenNumber.value.equals(Poseidon.hash([deck])), 'Other numbre was guessed');
+    let committedDeck = await this.deckHash.get();
+    assert(committedDeck.value.equals(Poseidon.hash([deck])), 'Deck did not match the initial deck! Someone tampered with the data');
   }
 }
