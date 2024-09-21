@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, {useContext, useState, useEffect } from 'react';
 import { TrendingDown, TrendingUp } from 'lucide-react';
 import './BlackjackGame.css';
 import GamePage from '@zknoid/sdk/components/framework/GamePage';
@@ -9,6 +9,10 @@ import { useNetworkStore } from "@zknoid/sdk/lib/stores/network";
 import { ClientAppChain } from "zknoid-chain-dev";
 import ZkNoidGameContext from "@zknoid/sdk/lib/contexts/ZkNoidGameContext";
 import { useProtokitChainStore } from "@zknoid/sdk/lib/stores/protokitChain";
+import { useNotificationStore } from "@zknoid/sdk/components/shared/Notification/lib/notificationStore";
+import { Field, Poseidon, PublicKey, UInt64 } from "o1js";
+
+
 
 
 function BlackjackGame() {
@@ -22,24 +26,70 @@ function BlackjackGame() {
     const [deck, setDeck] = useState([]);
 
 
-    // const networkStore = useNetworkStore();
-    // const protokitChain = useProtokitChainStore();
+    const { client } = useContext(ZkNoidGameContext);
+    console.log("Context", client);
   
-    // const client_ = client as ClientAppChain<
-    //   typeof numberConfig.runtimeModules,
-    //   any,
-    //   any,
-    //   any
-    // >;
+    if (!client) {
+      throw Error("Context app chain client is not set");
+    }
   
-    // const query = networkStore.protokitClientStarted
-    //   ? client_.query.runtime.GuessGame
-    //   : undefined;
+    const networkStore = useNetworkStore();
+    const protokitChain = useProtokitChainStore();
+    const notificationStore = useNotificationStore();
+  
+    const client_ = client as ClientAppChain<
+      typeof blackjackConfig.runtimeModules,
+      any,
+      any,
+      any
+    >;
+  
+    const query = networkStore.protokitClientStarted
+      ? client_.query.runtime.BlackjackLogic
+      : undefined;
+  
+    const verifyDeck = async (deck: object[]) => {
+      const blackjackLogic = client_.runtime.resolve("BlackjackLogic");
+      
+      //@ts-ignore
+      const deckString = deck.map(d => d.suit  + d.value).join("-")
+  
+      const tx = await client.transaction(
+        PublicKey.fromBase58(networkStore.address!),
+        async () => {
+          const signVal = Field.fromValue(BigInt(1))
+          await blackjackLogic.verifyDeck(signVal);
+        },
+      );
+        await tx.sign();
+        await tx.send();
+    };
+  
+    const signDeck = async (deck: object[]) => {
+      const blackjackLogic = client_.runtime.resolve("BlackjackLogic");
+      
+      //@ts-ignore
+      const deckString : string = deck.map(d => d.suit  + d.value).join("-")
+  
+      const tx = await client.transaction(
+        PublicKey.fromBase58(networkStore.address!),
+        async () => {
+          
+          const signVal = Field.fromValue(BigInt(1))
+
+          await blackjackLogic.signDeck(signVal);
+        },
+      );
+        await tx.sign();
+        await tx.send();
+      
+    };
   
 
     const suits = ['♠', '♥', '♦', '♣'];
     const values = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 
+    //@ts-ignore
     const initializeDeck = () => {
         let newDeck = [];
         for (let suit of suits) {
@@ -90,7 +140,7 @@ function BlackjackGame() {
         return value;
     };
 
-    const startGame = () => {
+    const startGame = async () => {
         const numericBet = parseInt(bet);
         if (numericBet > balance || numericBet <= 0 || isNaN(numericBet)) {
             setMessage('Please enter a valid bet amount.');
@@ -98,11 +148,15 @@ function BlackjackGame() {
         }
         setBalance(balance - numericBet);
         const newDeck = initializeDeck();
+
+        await signDeck(newDeck)
+        
         setDeck(newDeck);
         setPlayerHand([drawCard(), drawCard()]);
         setDealerHand([drawCard(), drawCard()]);
         setGameState(1);
         setMessage('');
+
     };
 
     const hit = () => {
@@ -158,6 +212,7 @@ function BlackjackGame() {
         }
         setGameResult(result);
         setGameState(3);
+        // verifyDeck(deck)
     };
 
     const resetGame = () => {
@@ -211,6 +266,9 @@ function BlackjackGame() {
                             className="bet-input"
                             placeholder="Enter your bet"
                             value={bet}
+                            style={{
+                              "color" : "black"
+                            }}
                             onChange={(e) => setBet(e.target.value)}
                         />
                         <button className="btn bet-btn" onClick={startGame}>

@@ -1,6 +1,6 @@
 import { createZkNoidGameConfig } from "@zknoid/sdk/lib/createConfig";
 import { ZkNoidGameType } from "@zknoid/sdk/lib/platform/game_types";
-import { BlackjackGame } from "zknoid-chain-dev";
+import { BlackjackLogic } from "zknoid-chain-dev";
 import {
   ZkNoidGameFeature,
   ZkNoidGameGenre,
@@ -22,7 +22,7 @@ export const blackjackConfig = createZkNoidGameConfig({
   rules:
     "In Blackjack, players compete against the dealer to get as close to 21 as possible without going over. Each player can hit to take another card or stand to hold their hand.",
   runtimeModules: {
-    BlackjackGame,
+    BlackjackLogic,
   },
   page: Blackjack,
 });
