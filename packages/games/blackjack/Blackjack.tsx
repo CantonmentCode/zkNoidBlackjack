@@ -4,6 +4,11 @@ import './BlackjackGame.css';
 import GamePage from '@zknoid/sdk/components/framework/GamePage';
 import { FullscreenWrap } from '@zknoid/sdk/components/framework/GameWidget/ui/FullscreenWrap';
 import { blackjackConfig } from './config';
+import {numberConfig} from '../number_guessing/config'
+import { useNetworkStore } from "@zknoid/sdk/lib/stores/network";
+import { ClientAppChain } from "zknoid-chain-dev";
+import ZkNoidGameContext from "@zknoid/sdk/lib/contexts/ZkNoidGameContext";
+import { useProtokitChainStore } from "@zknoid/sdk/lib/stores/protokitChain";
 
 
 function BlackjackGame() {
@@ -15,6 +20,22 @@ function BlackjackGame() {
     const [gameResult, setGameResult] = useState('');
     const [gameState, setGameState] = useState(0); // 0: betting, 1: player turn, 2: dealer turn, 3: game over
     const [deck, setDeck] = useState([]);
+
+
+    const networkStore = useNetworkStore();
+    const protokitChain = useProtokitChainStore();
+  
+    const client_ = client as ClientAppChain<
+      typeof numberConfig.runtimeModules,
+      any,
+      any,
+      any
+    >;
+  
+    const query = networkStore.protokitClientStarted
+      ? client_.query.runtime.GuessGame
+      : undefined;
+  
 
     const suits = ['♠', '♥', '♦', '♣'];
     const values = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
@@ -162,6 +183,7 @@ function BlackjackGame() {
           {isHidden ? '?' : `${card.value}${card.suit}`}
       </div>
   );
+  
 
   return (
     <GamePage gameConfig={blackjackConfig}>
