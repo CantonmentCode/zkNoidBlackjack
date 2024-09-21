@@ -15,6 +15,12 @@ import { UInt64 as ProtoUInt64, UInt } from '@proto-kit/library';
 import { MatchMaker } from '../../engine/MatchMaker';
 import { Lobby } from '../../engine/LobbyManager';
 
+
+// export class Card extends Struct({
+//   suit: UInt64,
+//   value: UInt64,
+// }) {}
+
 export class Card extends Struct({
   suit: UInt64,
   value: UInt64,

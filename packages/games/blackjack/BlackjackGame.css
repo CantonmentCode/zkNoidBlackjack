@@ -1,0 +1,215 @@
+.blackjack-game {
+    background: linear-gradient(to bottom right, #1a4731, #0d2818);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    font-family: Arial, sans-serif;
+}
+
+.game-container {
+    background-color: rgba(17, 24, 39, 0.9);
+    padding: 2rem;
+    border-radius: 1.5rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    color: white;
+    width: 100%;
+    max-width: 42rem;
+}
+
+.game-title {
+    font-size: 3rem;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 2rem;
+    color: #fbbf24;
+}
+
+.game-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.balance, .current-bet {
+    display: flex;
+    align-items: center;
+    background-color: rgba(31, 41, 55, 0.5);
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+}
+
+.balance-icon {
+    margin-right: 0.5rem;
+    font-size: 1.5rem;
+}
+
+.balance-amount {
+    font-weight: bold;
+    color: #fbbf24;
+}
+
+.bet-amount {
+    background-color: #fbbf24;
+    color: #111827;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-weight: bold;
+    margin-left: 0.5rem;
+}
+
+.betting-area {
+    margin-bottom: 1.5rem;
+}
+
+.bet-input {
+    width: 100%;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    border: none;
+    outline: none;
+}
+
+.btn {
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: bold;
+    color: white;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.bet-btn {
+    background: linear-gradient(to right, #fbbf24, #d97706);
+    width: 100%;
+    padding: 1rem;
+}
+
+.bet-btn:hover {
+    background: linear-gradient(to right, #d97706, #b45309);
+}
+
+.error-message {
+    color: #ef4444;
+    margin-top: 0.5rem;
+    text-align: center;
+    font-weight: 600;
+}
+
+.hand {
+    margin-bottom: 2rem;
+    background-color: rgba(31, 41, 55, 0.5);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+}
+
+.hand h2 {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-bottom: 1rem;
+    color: #fbbf24;
+}
+
+.cards {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.card {
+    width: 4rem;
+    height: 6rem;
+    margin: 0.25rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    font-weight: bold;
+    background-color: white;
+    color: #111827;
+}
+
+.hidden-card {
+    background-color: #4b5563;
+    color: #4b5563;
+}
+
+.hand-value {
+    text-align: center;
+    margin-top: 1rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.action-buttons {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 1.5rem;
+}
+
+.hit-btn {
+    background: linear-gradient(to right, #10b981, #059669);
+}
+
+.hit-btn:hover {
+    background: linear-gradient(to right, #059669, #047857);
+}
+
+.double-btn {
+    background: linear-gradient(to right, #3b82f6, #2563eb);
+}
+
+.double-btn:hover {
+    background: linear-gradient(to right, #2563eb, #1d4ed8);
+}
+
+.stand-btn {
+    background: linear-gradient(to right, #ef4444, #dc2626);
+}
+
+.stand-btn:hover {
+    background: linear-gradient(to right, #dc2626, #b91c1c);
+}
+
+.game-result {
+    text-align: center;
+}
+
+.result-message {
+    font-size: 1.875rem;
+    font-weight: bold;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.result-message.win {
+    color: #10b981;
+}
+
+.result-message.lose {
+    color: #ef4444;
+}
+
+.result-message svg {
+    margin-right: 0.5rem;
+}
+
+.play-again-btn {
+    background: linear-gradient(to right, #8b5cf6, #7c3aed);
+    padding: 0.75rem 2rem;
+}
+
+.play-again-btn:hover {
+    background: linear-gradient(to right, #7c3aed, #6d28d9);
+}
