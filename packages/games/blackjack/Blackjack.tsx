@@ -19,6 +19,7 @@ function BlackjackGame() {
   const [gameResult, setGameResult] = useState('');
   const [gameState, setGameState] = useState(0); // 0: betting, 1: player turn, 2: dealer turn, 3: game over
   const [deck, setDeck] = useState([]);
+  const [drawnCards, setDrawnCards] = useState([]); // New state variable
 
   const { client } = useContext(ZkNoidGameContext);
   console.log("Context", client);
@@ -153,6 +154,7 @@ function BlackjackGame() {
     const newDeck = [...deck];
     const card = newDeck.pop();
     setDeck(newDeck);
+    setDrawnCards(prevDrawnCards => [...prevDrawnCards, card]); // Update drawnCards
     return card;
   };
 
@@ -189,18 +191,19 @@ function BlackjackGame() {
     await signDeck(newDeck);
 
     setDeck(newDeck);
+    setDrawnCards([]); // Reset drawnCards
     setPlayerHand([drawCard(), drawCard()]);
     setDealerHand([drawCard(), drawCard()]);
     setGameState(1);
     setMessage('');
   };
 
-  const hit = () => {
+  const hit = async () => {
     const newCard = drawCard();
     const newHand = [...playerHand, newCard];
     setPlayerHand(newHand);
     if (calculateHandValue(newHand) > 21) {
-      endGame(dealerHand, newHand);
+      await endGame(dealerHand, newHand);
     }
   };
 
@@ -208,7 +211,7 @@ function BlackjackGame() {
     setGameState(2);
   };
 
-  const doubleDown = () => {
+  const doubleDown = async () => {
     const numericBet = parseInt(bet);
     if (balance < numericBet) {
       setMessage('Not enough balance to double down.');
@@ -220,18 +223,21 @@ function BlackjackGame() {
     const newHand = [...playerHand, newCard];
     setPlayerHand(newHand);
     setGameState(2);
+    if (calculateHandValue(newHand) > 21) {
+      await endGame(dealerHand, newHand);
+    }
   };
 
-  const dealerPlay = () => {
+  const dealerPlay = async () => {
     let newDealerHand = [...dealerHand];
     while (calculateHandValue(newDealerHand) < 17) {
       newDealerHand.push(drawCard());
     }
     setDealerHand(newDealerHand);
-    endGame(newDealerHand, playerHand);
+    await endGame(newDealerHand, playerHand);
   };
 
-  const endGame = (endDealerHand, endPlayerHand) => {
+  const endGame = async (endDealerHand, endPlayerHand) => {
     const playerValue = calculateHandValue(endPlayerHand);
     const dealerValue = calculateHandValue(endDealerHand);
     let result = '';
@@ -248,8 +254,11 @@ function BlackjackGame() {
     }
     setGameResult(result);
     setGameState(3);
-    // TODO: Reconstruct the deck from both player and dealer hand, and verify the validity with the initial shuffled deck.
-    // await verifyDeck(deck);
+
+    // Reconstruct the initial deck
+    const initialDeck = [...deck, ...drawnCards.slice().reverse()];
+    // Verify the deck
+    await verifyDeck(initialDeck);
   };
 
   const resetGame = () => {
@@ -259,16 +268,18 @@ function BlackjackGame() {
     setGameState(0);
     setMessage('');
     setGameResult('');
+    setDrawnCards([]); // Reset drawnCards
   };
 
   useEffect(() => {
     if (gameState === 2) {
-      dealerPlay();
+      (async () => {
+        await dealerPlay();
+      })();
     }
   }, [gameState]);
 
   const renderCard = (card, index, isHidden = false) => {
-    console.log("cardcardcard: ", card)
     const cardValue = Number(card.value.value.toBigInt());
     const cardSuit = Number(card.suit.value.toBigInt());
     const valueSymbol = valueSymbols[cardValue];
