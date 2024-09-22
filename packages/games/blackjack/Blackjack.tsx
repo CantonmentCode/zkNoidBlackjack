@@ -48,7 +48,7 @@ function BlackjackGame() {
   
     const deckValues = deck.map(d => {
       const cardValue = d.suit.mul(100).add(d.value); // UInt32
-      return Field(cardValue); // Convert to Field
+      return Field(cardValue); 
     });
   
     // Hash the deckValues array into a single Field element
@@ -69,7 +69,7 @@ function BlackjackGame() {
   
     const deckValues = deck.map(d => {
       const cardValue = d.suit.mul(100).add(d.value); // UInt32
-      return Field(cardValue); // Convert to Field
+      return Field(cardValue);
     });
   
     // Hash the deckValues array into a single Field element

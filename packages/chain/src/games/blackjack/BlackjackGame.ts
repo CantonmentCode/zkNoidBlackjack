@@ -15,14 +15,16 @@ export class BlackjackLogic extends RuntimeModule<BlackjackConfig> {
   @state() deckHash = State.from<Field>(Field);
 
   @runtimeMethod()
-  async signDeck(deck: Field) {
-    await this.deckHash.set(Poseidon.hash([deck]));
+  async signDeck(deckHash: Field) {
+    await this.deckHash.set(deckHash); 
   }
 
   @runtimeMethod()
-  async verifyDeck(deck: Field)
- {
-    let committedDeck = await this.deckHash.get();
-    assert(committedDeck.value.equals(Poseidon.hash([deck])), 'Deck did not match the initial deck! Someone tampered with the data');
+  async verifyDeck(deckHash: Field) {
+    let committedDeckHash = await this.deckHash.get();
+    assert(
+      committedDeckHash.value.equals(deckHash),
+      'Deck did not match the initial deck! Someone tampered with the data'
+    );
   }
 }
